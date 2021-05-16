@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Variato</string>
+    <string name="title_activity_splashscreen">Variato</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+
+
+    <string name="signup_txt">Sign Up</string>
+    <string name="login_txt">Sign In</string>
+
+    <string-array name="type_array">
+    </string-array>
+</resources>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:orientation="vertical"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+
+    <TextView
+        android:textSize="7pt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="16dp"
+        android:text="Please select the time" />
+    <LinearLayout
+        android:layout_gravity="center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+        <com.shawnlin.numberpicker.NumberPicker
+            android:id="@+id/timePicker"
+            app:np_dividerColor="@color/colorPrimary"
+            app:np_selectedTextColor="@color/colorPrimary"
+            app:np_textColor="@color/colorPrimary"
+            app:np_textSize="9pt"
+            app:np_formatter="%02d"
+            android:layout_width="wrap_content"
+            android:layout_height="120dp"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:text=":"
+            android:textStyle="bold"
+            android:textSize="15pt"
+            android:layout_marginBottom="4dp"
+            android:layout_gravity="center"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_height="wrap_content"/>
+        <com.shawnlin.numberpicker.NumberPicker
+            app:np_value="2"
+            app:np_min="0"
+            app:np_max="00"
+            app:np_dividerColor="@color/colorPrimary"
+            app:np_selectedTextColor="@color/colorPrimary"
+            app:np_textColor="@color/colorPrimary"
+            app:np_textSize="9pt"
+            app:np_formatter="%02d"
+            android:layout_gravity="center"
+            android:layout_width="wrap_content"
+            android:layout_height="120dp"/>
+
+    </LinearLayout>
+
+
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/mytxt"
+        android:padding="2dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginTop="10.0sp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/stay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.0"
+            android:padding="5.0sp"
+            android:textAllCaps="false"
+            app:iconGravity="textStart"
+            app:iconPadding="5dp"
+            app:strokeWidth="2dp"
+            style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+            android:text="Cancel"/>
+
+        <LinearLayout
+            android:layout_width="5dp"
+            android:layout_height="match_parent"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/ok_time"
+            android:textAllCaps="false"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.0"
+            android:padding="5.0sp"
+            style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+            app:iconGravity="textStart"
+            app:iconPadding="5dp"
+            app:strokeWidth="2dp"
+            android:text="OK"
+
+            />
+    </LinearLayout>
+
+</LinearLayout>

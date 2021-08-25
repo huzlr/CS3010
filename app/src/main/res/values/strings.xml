@@ -8,6 +8,7 @@
     <string name="signup_txt">Sign Up</string>
     <string name="login_txt">Sign In</string>
 
-    <string-array name="type_array">
-    </string-array>
+    <string name="map_api_key">AIzaSyDtHYjJ2PnDYTErQYXXR7Qm8-ePBkwfMB0</string>
+
+    <string-array name="type_array"></string-array>
 </resources>

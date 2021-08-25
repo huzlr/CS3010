@@ -2,13 +2,24 @@ package com.fyp.variato.activities;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,11 +31,21 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
 import android.widget.Button;
 import android.widget.DatePicker;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.fyp.variato.R;
 import com.fyp.variato.utils.Constants;
 import com.google.firebase.auth.FirebaseAuth;
@@ -36,14 +57,21 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.shawnlin.numberpicker.NumberPicker;
 
+import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
 
 
+    private static final String TAG = "TAG";
     EditText bookName;
     Button btnBook;
     Button viewbook;
@@ -51,14 +79,21 @@ public class MainActivity extends AppCompatActivity {
     FirebaseAuth mAuth;
     String j;
     DatePickerDialog picker;
-    EditText date,time;
-   DatabaseReference booking_reference;
+    EditText date, time;
+    DatabaseReference booking_reference;
     private int tableNo;
     private int selectedHours;
     private String currentDayName;
     String DATE_FORMAT_16 = "EEE, d MMM yyyy HH:mm:ss";
-    int timeSlotSeatPositionCount ;
+    int timeSlotSeatPositionCount;
     Dialog dialog;
+    TextView tempTV, minTempTV, maxTempTV, weatherDescTV, cityNameTV;
+    ImageView refreshBtn;
+
+    private SensorManager mSensorManager;
+    private float mAccel;
+    private float mAccelCurrent;
+    private float mAccelLast;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,9 +112,61 @@ public class MainActivity extends AppCompatActivity {
         viewbook = findViewById(R.id.viewbookings);
         numberPicker.setMinValue(1);
         numberPicker.setMaxValue(30);
-        Intent iin= getIntent();
+
+        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        Objects.requireNonNull(mSensorManager).registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL);
+        mAccel = 10f;
+        mAccelCurrent = SensorManager.GRAVITY_EARTH;
+        mAccelLast = SensorManager.GRAVITY_EARTH;
+
+        refreshBtn  = findViewById(R.id.refreshBtn);
+        refreshBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Animation animation = new RotateAnimation(0.0f, 360.0f,
+                        Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF,
+                        0.5f);
+                animation.setRepeatCount(-1);
+                animation.setDuration(1000);
+                refreshBtn.startAnimation(animation);
+                new Handler().postDelayed(new Runnable(){
+                    @Override
+                    public void run() {
+                        if (checkLocationPermission()) {
+                            LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+                            Location location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                            readWeatherFromAPI(location);
+                        } else {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1001);
+                            }
+                        }
+                    }
+                },2000);
+            }
+        });
+        tempTV = (TextView) findViewById(R.id.temp_tv);
+        minTempTV = (TextView) findViewById(R.id.minTempTV);
+        maxTempTV = (TextView) findViewById(R.id.maxTempTv);
+        weatherDescTV = (TextView) findViewById(R.id.weather_desc_tv);
+        cityNameTV = (TextView) findViewById(R.id.cityNameTv);
+
+        Intent iin = getIntent();
         Bundle b = iin.getExtras();
 
+        ((findViewById(R.id.viewMap))).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (checkLocationPermission()) {
+                    startActivity(new Intent(getApplicationContext(), MapActivity.class));
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1001);
+                    }
+                }
+            }
+        });
         date.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -98,10 +185,10 @@ public class MainActivity extends AppCompatActivity {
                                 SimpleDateFormat sdf = new SimpleDateFormat("EEEE");
                                 Date d = new Date(year, monthOfYear, dayOfMonth - 1);
                                 String dayOfTheWeek = sdf.format(d);
-                                date.setText(dayOfTheWeek+", "+dayOfMonth + "-" + (monthOfYear + 1) + "-" +year+"");
+                                date.setText(dayOfTheWeek + ", " + dayOfMonth + "-" + (monthOfYear + 1) + "-" + year + "");
                                 currentDayName = dayOfTheWeek;
-                                Log.e("TAG", "onDateSet: "+date );
-                                Log.d("TAG","today name : "+dayOfTheWeek);
+                                Log.e("TAG", "onDateSet: " + date);
+                                Log.d("TAG", "today name : " + dayOfTheWeek);
                             }
                         }, year, month, day);
 
@@ -111,8 +198,7 @@ public class MainActivity extends AppCompatActivity {
         time.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(date.getText().toString().equals(""))
-                {
+                if (date.getText().toString().equals("")) {
                     Toast.makeText(MainActivity.this, "Select first booking date", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -132,21 +218,21 @@ public class MainActivity extends AppCompatActivity {
                 mTimePicker.show();*/
             }
         });
-        if(b!=null) {
-            j =(String) b.get("tablekey");
+        if (b != null) {
+            j = (String) b.get("tablekey");
             tableNo = (int) b.getLong("tableNo");
-            Log.e("TAG", "tablekey: "+j);
-            Log.e("TAG", "tableNo: "+tableNo);
-            Log.d("TAG", "Total Seats : "+ Constants.totalSeats);
+            Log.e("TAG", "tablekey: " + j);
+            Log.e("TAG", "tableNo: " + tableNo);
+            Log.d("TAG", "Total Seats : " + Constants.totalSeats);
         }
         mAuth = FirebaseAuth.getInstance();
-        FirebaseUser user= mAuth.getCurrentUser();
+        FirebaseUser user = mAuth.getCurrentUser();
         assert user != null;
-        Log.e("TAG", "user: "+user.getUid().toString() );
+        Log.e("TAG", "user: " + user.getUid().toString());
 
         numberPicker.setOnValueChangedListener((picker, oldVal, newVal) -> {
 
-            Log.d("TAG","value : "+ picker.getValue());
+            Log.d("TAG", "value : " + picker.getValue());
 
         });
 
@@ -158,7 +244,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                Log.d("TAG", "Total Seats : "+ Constants.totalSeats);
+                Log.d("TAG", "Total Seats : " + Constants.totalSeats);
 
             }
 
@@ -211,10 +297,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
 
-                Log.d("TAG","time edit text changed...");
+                Log.d("TAG", "time edit text changed...");
 
-                if(date.getText().toString().equals(""))
-                {
+                if (date.getText().toString().equals("")) {
                     return;
                 }
                 addTimeSeatsInDB();
@@ -232,17 +317,15 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }*/
 
-            if(bookName.getText().toString().equals(""))
-            {
+            if (bookName.getText().toString().equals("")) {
                 Toast.makeText(this, "Enter name to book", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if(date.getText().toString().equals(""))
-            {
+            if (date.getText().toString().equals("")) {
                 Toast.makeText(this, "Select data for booking", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if(time.getText().toString().equals("")) {
+            if (time.getText().toString().equals("")) {
                 Toast.makeText(this, "Select booking time", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -250,14 +333,14 @@ public class MainActivity extends AppCompatActivity {
              return;
             }*/
             // 100 > 100
-            if(timeSlotSeatPositionCount >= 100) {
+            if (timeSlotSeatPositionCount >= 100) {
                 Toast.makeText(this, "Sorry all cafe seats are reserved right now for this timing", Toast.LENGTH_SHORT).show();
                 return;
             }
             int seatLeft = 100 - timeSlotSeatPositionCount;
-            Log.d("TAG","seat left : "+seatLeft);
-            if(numberPicker.getValue() > seatLeft) {
-                Toast.makeText(this, "Sorry "+seatLeft+" seats are left this hours", Toast.LENGTH_SHORT).show();
+            Log.d("TAG", "seat left : " + seatLeft);
+            if (numberPicker.getValue() > seatLeft) {
+                Toast.makeText(this, "Sorry " + seatLeft + " seats are left this hours", Toast.LENGTH_SHORT).show();
                 return;
             }
             ProgressDialog progressDialog;
@@ -280,7 +363,6 @@ public class MainActivity extends AppCompatActivity {
             /**handler to put a delay so data can load and displayed*/
 
 
-
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -289,7 +371,7 @@ public class MainActivity extends AppCompatActivity {
                     DatabaseReference reference = FirebaseDatabase.getInstance().getReference(Constants.USERS)
                             .child(mAuth.getCurrentUser().getUid()).child("Booking");
                     String key = reference.push().getKey();
-                    booking_reference= reference.child(key);
+                    booking_reference = reference.child(key);
                     reference.addListenerForSingleValueEvent(new ValueEventListener() {
                         @Override
                         public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -297,8 +379,8 @@ public class MainActivity extends AppCompatActivity {
                             String currentDate = new SimpleDateFormat("EEE, dd-MM-yyyy", Locale.getDefault()).format(new Date());
                             String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
 
-                            String currentDateAndTime = new SimpleDateFormat("MM/dd/yyyy HH:mm aa",Locale.getDefault()).format(new Date());
-                            String bookingExpiryDate = new SimpleDateFormat("MM/dd/yyyy HH:mm aa",Locale.getDefault()).format(new Date(System.currentTimeMillis() + 3600 * 1000));
+                            String currentDateAndTime = new SimpleDateFormat("MM/dd/yyyy HH:mm aa", Locale.getDefault()).format(new Date());
+                            String bookingExpiryDate = new SimpleDateFormat("MM/dd/yyyy HH:mm aa", Locale.getDefault()).format(new Date(System.currentTimeMillis() + 3600 * 1000));
 
                             booking_reference.child("bookingKey").setValue(key);
                             booking_reference.child("BookedTimeSlotKey").setValue(date.getText().toString());
@@ -318,7 +400,7 @@ public class MainActivity extends AppCompatActivity {
                                     .child(Constants.RESERVED_SEATS).setValue(totalPersonNow);*/
 
                             FirebaseDatabase.getInstance().getReference(Constants.APP_CONFIG_)
-                            .child(date.getText().toString())
+                                    .child(date.getText().toString())
                                     .child(time.getText().toString())
                                     .child("BookedSeatsInThisSlot").setValue(timeSlotSeatPositionCount + numberPicker.getValue());
 
@@ -359,21 +441,19 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    boolean validateWorkingHours(){
-        if(currentDayName.equalsIgnoreCase(Constants.Sunday)) {
-            if(selectedHours < 9 || selectedHours > 20) {
+    boolean validateWorkingHours() {
+        if (currentDayName.equalsIgnoreCase(Constants.Sunday)) {
+            if (selectedHours < 9 || selectedHours > 20) {
                 Toast.makeText(this, "Selected day timing from 9 am to 8 pm only", Toast.LENGTH_SHORT).show();
                 return false;
             }
-        }
-        else if(currentDayName.equalsIgnoreCase(Constants.friday) || currentDayName.equalsIgnoreCase(Constants.saturday)) {
-            if(selectedHours < 9 || selectedHours > 20) {
+        } else if (currentDayName.equalsIgnoreCase(Constants.friday) || currentDayName.equalsIgnoreCase(Constants.saturday)) {
+            if (selectedHours < 9 || selectedHours > 20) {
                 Toast.makeText(this, "Selected day timing from 9 am to 10 pm only", Toast.LENGTH_SHORT).show();
                 return false;
             }
-        }
-        else if(Constants.dayOfWeekName.equalsIgnoreCase(Constants.otherDays)) {
-            if(selectedHours < 9 || selectedHours > 22) {
+        } else if (Constants.dayOfWeekName.equalsIgnoreCase(Constants.otherDays)) {
+            if (selectedHours < 9 || selectedHours > 22) {
                 Toast.makeText(this, "Selected day timing from 9 pm to 8 pm only", Toast.LENGTH_SHORT).show();
                 return false;
             }
@@ -381,22 +461,21 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    void addTimeSeatsInDB(){
+    void addTimeSeatsInDB() {
         DatabaseReference reference = FirebaseDatabase.getInstance().getReference(Constants.APP_CONFIG_);
         reference.child(date.getText().toString())
                 .child(time.getText().toString())
                 .child("BookedSeatsInThisSlot").addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                if(!snapshot.exists()) {
+                if (!snapshot.exists()) {
                     DatabaseReference reference = FirebaseDatabase.getInstance().getReference(Constants.APP_CONFIG_);
                     reference.child(date.getText().toString())
                             .child(time.getText().toString())
                             .child("BookedSeatsInThisSlot").setValue(0);
-                }
-                else {
+                } else {
 
-                    timeSlotSeatPositionCount  = snapshot.getValue(Integer.class);
+                    timeSlotSeatPositionCount = snapshot.getValue(Integer.class);
                 }
             }
 
@@ -423,8 +502,15 @@ public class MainActivity extends AppCompatActivity {
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
             }
-        }
-        else if(item.getItemId() == R.id.menu_bookings) {
+        } else if (item.getItemId() == R.id.menu_map) {
+            if (checkLocationPermission()) {
+                startActivity(new Intent(getApplicationContext(), MapActivity.class));
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1001);
+                }
+            }
+        } else if (item.getItemId() == R.id.menu_bookings) {
             Intent intent = new Intent(getApplicationContext(), bookings.class);
             startActivity(intent);
         }
@@ -434,20 +520,22 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
+        mSensorManager.registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL);
         super.onResume();
         try {
-            if(SplashscreenActivity.class != null)
-            {
+            if (SplashscreenActivity.class != null) {
                 SplashscreenActivity.checkTimeForExpiry();
             }
-        }catch (Exception e){}
+        } catch (Exception e) {
+        }
     }
 
-    void openTimeDialog(){
+    void openTimeDialog() {
 
         View view = LayoutInflater.from(this).inflate(R.layout.time_picker_dialog, null, false);
 
-        AlertDialog.Builder builder  = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
         builder.setTitle("Booking Time");
         builder.setView(view);
@@ -456,27 +544,24 @@ public class MainActivity extends AppCompatActivity {
         Button okBtn = view.findViewById(R.id.ok_time);
         NumberPicker timeP = view.findViewById(R.id.timePicker);
 
-        Log.d("TAG","day name ;"+currentDayName);
-        if(currentDayName.equalsIgnoreCase(Constants.saturday)) {
+        Log.d("TAG", "day name ;" + currentDayName);
+        if (currentDayName.equalsIgnoreCase(Constants.saturday)) {
             timeP.setMinValue(9);
             timeP.setMaxValue(22);
-            Log.d("TAG","saturday entered.....");
+            Log.d("TAG", "saturday entered.....");
 
-        }
-        else if(currentDayName.equalsIgnoreCase(Constants.friday)) {
+        } else if (currentDayName.equalsIgnoreCase(Constants.friday)) {
             timeP.setMinValue(9);
             timeP.setMaxValue(22);
-            Log.d("TAG","friday entered.....");
-        }
-        else if(currentDayName.equalsIgnoreCase(Constants.Sunday)) {
+            Log.d("TAG", "friday entered.....");
+        } else if (currentDayName.equalsIgnoreCase(Constants.Sunday)) {
             timeP.setMinValue(9);
             timeP.setMaxValue(20);
-            Log.d("TAG","sunday entered.....");
-        }
-        else {
+            Log.d("TAG", "sunday entered.....");
+        } else {
             timeP.setMinValue(9);
             timeP.setMaxValue(20);
-            Log.d("TAG","other day entered.....");
+            Log.d("TAG", "other day entered.....");
         }
 
         cancel.setOnClickListener(new View.OnClickListener() {
@@ -490,18 +575,194 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 dialog.cancel();
                 selectedHours = timeP.getValue();
-                time.setText( timeP.getValue() + " : 00");
+                time.setText(timeP.getValue() + " : 00");
 
             }
         });
         timeP.setOnValueChangedListener(new NumberPicker.OnValueChangeListener() {
             @Override
             public void onValueChange(NumberPicker picker, int oldVal, int newVal) {
-                Log.d("TAG","value :"+picker.getValue()+": 00");
+                Log.d("TAG", "value :" + picker.getValue() + ": 00");
             }
         });
         dialog = builder.create();
         dialog.show();
+
+    }
+
+    boolean checkLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return false;
+        }
+        return true;
+    }
+
+    void readWeatherFromAPI(Location location) {
+        if (location == null) {
+            return;
+        }
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = "https://api.openweathermap.org/data/2.5/weather?";
+        url += "lat=";
+        url += location.getLatitude();
+        url += "&lon=";
+        url += location.getLongitude();
+        url += "&appid=";
+        url += Constants.WEATHER_API_KEY;
+
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String result) {
+                        Log.d("TAG", "response :: " + result);
+
+                        JSONObject response = null;
+                        try {
+                            response = new JSONObject(result);
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        try {
+
+                            JSONArray weatherArray = response.getJSONArray("weather");
+                            JSONObject weatherObj = weatherArray.getJSONObject(0);
+                            JSONObject mainArray = response.getJSONObject("main");
+
+                            tempTV.setText(String.valueOf(kelvinToCelsius((Double) mainArray.get("temp")))+"°");
+                            minTempTV.setText(String.valueOf(kelvinToCelsius((Double) mainArray.get("temp_min")))+"° / ");
+                            maxTempTV.setText(String.valueOf(kelvinToCelsius((Double) mainArray.get("temp_max")))+"°");
+                            cityNameTV.setText(String.valueOf(response.get("name")));
+                            weatherDescTV.setText(String.valueOf(weatherObj.get("description")));
+
+
+                            Log.d(TAG, "Object 2 "+String.valueOf(mainArray.get("temp"))+" : "  +mainArray.get("feels_like")
+                                    +" : "  +mainArray.get("temp_min") +" : "  +mainArray.get("temp_max"));
+
+                            Log.d(TAG,String.valueOf(weatherObj.get("description")));
+                            refreshBtn.clearAnimation();
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                            Log.d(TAG, "Object 2"+e);
+
+                        }
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.d("TAG", "error :: " + error.getLocalizedMessage());
+                refreshBtn.clearAnimation();
+
+            }
+        });
+
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull @NotNull String[] permissions, @NonNull @NotNull int[] grantResults) {
+        switch (requestCode) {
+            case 1001:
+
+                for (int i = 0; i < permissions.length; i++) {
+                    if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                        Log.d("Permissions", "Permission Granted: " + permissions[i]);
+                        // Here you write your code once permission granted
+
+                    } else if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                        Log.d("Permissions", "Permission Denied: " + permissions[i]);
+                    }
+                }
+                if (checkLocationPermission()) {
+                    LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+                    Location location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                    readWeatherFromAPI(location);
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1001);
+                    }
+                }
+
+                break;
+            default: {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            }
+
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Animation animation = new RotateAnimation(0.0f, 360.0f,
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF,
+                0.5f);
+        animation.setRepeatCount(-1);
+        animation.setDuration(1000);
+        refreshBtn.startAnimation(animation);
+        new Handler().postDelayed(new Runnable(){
+            @Override
+            public void run() {
+                if (checkLocationPermission()) {
+                    LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+                    Location location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                    readWeatherFromAPI(location);
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 1001);
+                    }
+                }
+            }
+        },2000);
+
+    }
+    int kelvinToCelsius(Double kelvin)
+    {
+        return (int) Math.round(( kelvin - 273.15F));
+    }
+
+    private final SensorEventListener mSensorListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            float x = event.values[0];
+            float y = event.values[1];
+            float z = event.values[2];
+            mAccelLast = mAccelCurrent;
+            mAccelCurrent = (float) Math.sqrt((double) (x * x + y * y + z * z));
+            float delta = mAccelCurrent - mAccelLast;
+            mAccel = mAccel * 0.9f + delta;
+            if (mAccel > 13) {
+                Log.d("TAG","changing sensor value .....");
+
+                mSensorManager.unregisterListener(mSensorListener);
+                startActivity(new Intent(MainActivity.this,bookings.class));
+                //Toast.makeText(getApplicationContext(), "Shake event detected", Toast.LENGTH_SHORT).show();
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        /*mSensorManager.registerListener(mSensorListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                                SensorManager.SENSOR_DELAY_NORMAL);*/
+                    }
+                },2000);
+            }
+        }
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
+
+    @Override
+    protected void onPause() {
+        mSensorManager.unregisterListener(mSensorListener);
+        super.onPause();
 
     }
 }

@@ -22,5 +22,7 @@ public class Constants {
     public static String Sunday = "Sunday";
     public static String otherDays = "OtherDays";
 
+    public static String WEATHER_API_KEY = "d213503c3ee387079c2025e805bb8def";
+
 
 }

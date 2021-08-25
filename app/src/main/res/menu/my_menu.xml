@@ -5,6 +5,8 @@
     <item android:id="@+id/menu_bookings"
         android:title="My Bookings">
     </item>
+    <item android:id="@+id/menu_map"
+        android:title="Map"/>
 
     <item android:id="@+id/menu_signout"
         android:title="Log out">

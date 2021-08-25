@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.fyp.variato">
-    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.google.android.providers.gsf.permission.
+   READ_GSERVICES" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -9,7 +15,8 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.Variato">
-        <activity android:name=".activities.bookings"></activity>
+        <activity android:name=".activities.MapActivity"/>
+        <activity android:name=".activities.bookings" />
         <activity android:name=".activities.available_tables" />
         <activity android:name=".activities.SignUpActivity" />
         <activity android:name=".activities.SignInActivity" />
@@ -33,6 +40,10 @@
             </intent-filter>
             -->
         </activity>
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/map_api_key" />
     </application>
 
 </manifest>

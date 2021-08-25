@@ -2,9 +2,14 @@ package com.fyp.variato.activities;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -31,14 +36,16 @@ public class SplashscreenActivity extends AppCompatActivity {
 
     Handler handler = new Handler();
     static FirebaseAuth firebaseAuth;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splashscreen);
         firebaseAuth = FirebaseAuth.getInstance();
-        getWindow().setFlags(1024,1024);
+        getWindow().setFlags(1024, 1024);
 
         getSupportActionBar().hide();
+
 
         ((findViewById(R.id.icon))).setOnClickListener(new View.OnClickListener() {
             @Override
